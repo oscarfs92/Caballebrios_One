@@ -97,9 +97,11 @@ def execute_query(c, query, params=None):
     if params and USE_POSTGRES:
         # Convert ? to %s for PostgreSQL
         pg_query = query.replace('?', '%s')
-        execute_query(c, pg_query, params)
+        c.execute(pg_query, params)
+    elif params:
+        c.execute(query, params)
     else:
-        execute_query(c, query, params) if params else execute_query(c, query)
+        c.execute(query)
 
 def init_db():
     """Initialize the database with all required tables"""
