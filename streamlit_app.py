@@ -92,6 +92,15 @@ def get_db_connection():
     else:
         return sqlite3.connect(DB_PATH)
 
+def execute_query(c, query, params=None):
+    """Execute query with proper parameter placeholders for both SQLite and PostgreSQL"""
+    if params and USE_POSTGRES:
+        # Convert ? to %s for PostgreSQL
+        pg_query = query.replace('?', '%s')
+        execute_query(c, pg_query, params)
+    else:
+        execute_query(c, query, params) if params else execute_query(c, query)
+
 def init_db():
     """Initialize the database with all required tables"""
     conn = get_db_connection()
@@ -99,13 +108,13 @@ def init_db():
     
     if USE_POSTGRES:
         # PostgreSQL SQL syntax
-        c.execute('''CREATE TABLE IF NOT EXISTS players
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS players
                      (id SERIAL PRIMARY KEY,
                       name TEXT NOT NULL UNIQUE,
                       profile_pic BYTEA,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS seasons
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS seasons
                      (id SERIAL PRIMARY KEY,
                       name TEXT NOT NULL UNIQUE,
                       start_date DATE,
@@ -113,14 +122,14 @@ def init_db():
                       is_active INTEGER DEFAULT 0,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS games
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS games
                      (id SERIAL PRIMARY KEY,
                       name TEXT NOT NULL UNIQUE,
                       points_per_win INTEGER NOT NULL,
                       description TEXT,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS game_nights
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS game_nights
                      (id SERIAL PRIMARY KEY,
                       season_id INTEGER NOT NULL,
                       date DATE NOT NULL,
@@ -128,7 +137,7 @@ def init_db():
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                       FOREIGN KEY (season_id) REFERENCES seasons(id))''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS game_rounds
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS game_rounds
                      (id SERIAL PRIMARY KEY,
                       game_night_id INTEGER NOT NULL,
                       game_id INTEGER NOT NULL,
@@ -138,7 +147,7 @@ def init_db():
                       FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
                       FOREIGN KEY (game_id) REFERENCES games(id))''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS round_winners
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS round_winners
                      (id SERIAL PRIMARY KEY,
                       round_id INTEGER NOT NULL,
                       player_id INTEGER NOT NULL,
@@ -147,7 +156,7 @@ def init_db():
                       FOREIGN KEY (round_id) REFERENCES game_rounds(id),
                       FOREIGN KEY (player_id) REFERENCES players(id))''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS penalties
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS penalties
                      (id SERIAL PRIMARY KEY,
                       game_night_id INTEGER NOT NULL,
                       player_id INTEGER NOT NULL,
@@ -158,18 +167,18 @@ def init_db():
                       FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
                       FOREIGN KEY (player_id) REFERENCES players(id))''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS settings
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS settings
                      (key TEXT PRIMARY KEY,
                       value TEXT NOT NULL)''')
     else:
         # SQLite SQL syntax
-        c.execute('''CREATE TABLE IF NOT EXISTS players
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS players
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       name TEXT NOT NULL UNIQUE,
                       profile_pic BLOB,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS seasons
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS seasons
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       name TEXT NOT NULL UNIQUE,
                       start_date DATE,
@@ -177,14 +186,14 @@ def init_db():
                       is_active BOOLEAN DEFAULT 1,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS games
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS games
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       name TEXT NOT NULL UNIQUE,
                       points_per_win INTEGER NOT NULL,
                       description TEXT,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS game_nights
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS game_nights
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       season_id INTEGER NOT NULL,
                       date DATE NOT NULL,
@@ -192,7 +201,7 @@ def init_db():
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                       FOREIGN KEY (season_id) REFERENCES seasons(id))''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS game_rounds
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS game_rounds
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       game_night_id INTEGER NOT NULL,
                       game_id INTEGER NOT NULL,
@@ -202,7 +211,7 @@ def init_db():
                       FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
                       FOREIGN KEY (game_id) REFERENCES games(id))''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS round_winners
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS round_winners
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       round_id INTEGER NOT NULL,
                       player_id INTEGER NOT NULL,
@@ -210,7 +219,7 @@ def init_db():
                       FOREIGN KEY (round_id) REFERENCES game_rounds(id),
                       FOREIGN KEY (player_id) REFERENCES players(id))''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS penalties
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS penalties
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       game_night_id INTEGER NOT NULL,
                       player_id INTEGER NOT NULL,
@@ -221,16 +230,16 @@ def init_db():
                       FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
                       FOREIGN KEY (player_id) REFERENCES players(id))''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS settings
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS settings
                      (key TEXT PRIMARY KEY,
                       value TEXT NOT NULL)''')
     
     # Insert default penalty amount if not exists
     if USE_POSTGRES:
-        c.execute("INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING", 
+        execute_query(c, "INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING", 
                   ('default_penalty_amount', '10'))
     else:
-        c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", 
+        execute_query(c, "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", 
                   ('default_penalty_amount', '10'))
     
     conn.commit()
@@ -244,9 +253,16 @@ def get_active_season():
     """Get the currently active season"""
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT id, name FROM seasons WHERE is_active = 1 LIMIT 1")
-    result = c.fetchone()
-    conn.close()
+    try:
+        if USE_POSTGRES:
+            execute_query(c, "SELECT id, name FROM seasons WHERE is_active = %s LIMIT 1", (1,))
+        else:
+            execute_query(c, "SELECT id, name FROM seasons WHERE is_active = ?", (1,))
+        result = c.fetchone()
+    except Exception as e:
+        result = None
+    finally:
+        conn.close()
     return result
 
 def execute_query(c, query, params=None):
@@ -254,9 +270,9 @@ def execute_query(c, query, params=None):
     if USE_POSTGRES and params:
         # Convert ? to %s for PostgreSQL
         pg_query = query.replace('?', '%s')
-        c.execute(pg_query, params)
+        execute_query(c, pg_query, params)
     else:
-        c.execute(query, params) if params else c.execute(query)
+        execute_query(c, query, params) if params else execute_query(c, query)
 
 def image_to_bytes(image):
     """Convert PIL Image to bytes"""
@@ -445,7 +461,7 @@ def manage_players():
                         image.thumbnail((200, 200))
                         profile_pic = image_to_bytes(image)
                     
-                    c.execute("INSERT INTO players (name, profile_pic) VALUES (?, ?)",
+                    execute_query(c, "INSERT INTO players (name, profile_pic) VALUES (?, ?)",
                              (player_name, profile_pic))
                     conn.commit()
                     st.success(f"✅ ¡Jugador '{player_name}' agregado!")
@@ -499,9 +515,9 @@ def manage_seasons():
                 try:
                     # If making this active, deactivate others
                     if make_active:
-                        c.execute("UPDATE seasons SET is_active = 0")
+                        execute_query(c, "UPDATE seasons SET is_active = 0")
                     
-                    c.execute("""INSERT INTO seasons (name, start_date, end_date, is_active) 
+                    execute_query(c, """INSERT INTO seasons (name, start_date, end_date, is_active) 
                                 VALUES (?, ?, ?, ?)""",
                              (season_name, start_date, end_date, 1 if make_active else 0))
                     conn.commit()
@@ -533,8 +549,8 @@ def manage_seasons():
                     if not season['is_active']:
                         if st.button("Activar", key=f"activate_{season['id']}"):
                             c = conn.cursor()
-                            c.execute("UPDATE seasons SET is_active = 0")
-                            c.execute("UPDATE seasons SET is_active = 1 WHERE id = ?", (season['id'],))
+                            execute_query(c, "UPDATE seasons SET is_active = 0")
+                            execute_query(c, "UPDATE seasons SET is_active = 1 WHERE id = ?", (season['id'],))
                             conn.commit()
                             st.success("¡Temporada activada!")
                             st.rerun()
@@ -563,7 +579,7 @@ def manage_games():
                 c = conn.cursor()
                 
                 try:
-                    c.execute("""INSERT INTO games (name, points_per_win, description) 
+                    execute_query(c, """INSERT INTO games (name, points_per_win, description) 
                                 VALUES (?, ?, ?)""",
                              (game_name, points_per_win, description))
                     conn.commit()
@@ -597,7 +613,7 @@ def manage_games():
                         if st.form_submit_button("Actualizar"):
                             conn = get_db_connection()
                             c = conn.cursor()
-                            c.execute("""UPDATE games 
+                            execute_query(c, """UPDATE games 
                                        SET points_per_win = ?, description = ? 
                                        WHERE id = ?""",
                                      (new_points, new_desc, game['id']))
@@ -674,7 +690,7 @@ def manage_game_nights():
                 
                 if st.form_submit_button("Crear Noche de Juego"):
                     c = conn.cursor()
-                    c.execute("""INSERT INTO game_nights (season_id, date, notes) 
+                    execute_query(c, """INSERT INTO game_nights (season_id, date, notes) 
                                 VALUES (?, ?, ?)""",
                              (active_season[0], night_date, notes))
                     conn.commit()
@@ -740,14 +756,14 @@ def manage_game_nights():
                     c = conn.cursor()
                     
                     # Insert round
-                    c.execute("""INSERT INTO game_rounds (game_night_id, game_id, round_number) 
+                    execute_query(c, """INSERT INTO game_rounds (game_night_id, game_id, round_number) 
                                VALUES (?, ?, ?)""",
                              (selected_night_id, selected_game, round_number))
                     round_id = c.lastrowid
                     
                     # Insert winners
                     for winner_id in winners:
-                        c.execute("INSERT INTO round_winners (round_id, player_id) VALUES (?, ?)",
+                        execute_query(c, "INSERT INTO round_winners (round_id, player_id) VALUES (?, ?)",
                                 (round_id, winner_id))
                     
                     conn.commit()
@@ -811,7 +827,7 @@ def manage_game_nights():
             
             if st.form_submit_button("Registrar Penalización"):
                 c = conn.cursor()
-                c.execute("""INSERT INTO penalties 
+                execute_query(c, """INSERT INTO penalties 
                            (game_night_id, player_id, penalty_type, amount, reason) 
                            VALUES (?, ?, ?, ?, ?)""",
                          (selected_night_id, penalized_player, penalty_type, 
@@ -1092,9 +1108,9 @@ def show_admin():
                     if st.button("🗑️ Eliminar Ronda Seleccionada", type="primary"):
                         c = conn.cursor()
                         # Delete winners first (foreign key constraint)
-                        c.execute("DELETE FROM round_winners WHERE round_id = ?", (round_to_delete,))
+                        execute_query(c, "DELETE FROM round_winners WHERE round_id = ?", (round_to_delete,))
                         # Delete round
-                        c.execute("DELETE FROM game_rounds WHERE id = ?", (round_to_delete,))
+                        execute_query(c, "DELETE FROM game_rounds WHERE id = ?", (round_to_delete,))
                         conn.commit()
                         st.success("✅ Ronda eliminada exitosamente!")
                         st.rerun()
@@ -1130,7 +1146,7 @@ def show_admin():
                     if st.form_submit_button("✏️ Actualizar Nombre"):
                         c = conn.cursor()
                         try:
-                            c.execute("UPDATE players SET name = ? WHERE id = ?", (new_name, selected_player))
+                            execute_query(c, "UPDATE players SET name = ? WHERE id = ?", (new_name, selected_player))
                             conn.commit()
                             st.success(f"✅ Nombre actualizado a '{new_name}'")
                             st.rerun()
@@ -1151,7 +1167,7 @@ def show_admin():
                         if st.button("Actualizar Foto", key=f"update_pic_{selected_player}"):
                             pic_bytes = image_to_bytes(new_img)
                             c = conn.cursor()
-                            c.execute("UPDATE players SET profile_pic = ? WHERE id = ?", (pic_bytes, selected_player))
+                            execute_query(c, "UPDATE players SET profile_pic = ? WHERE id = ?", (pic_bytes, selected_player))
                             conn.commit()
                             st.success("✅ Foto de perfil actualizada!")
                             st.rerun()
@@ -1166,9 +1182,9 @@ def show_admin():
                 if st.button("🗑️ Eliminar Jugador", type="primary", disabled=not confirm_delete):
                     c = conn.cursor()
                     # Delete all related records
-                    c.execute("""DELETE FROM round_winners WHERE player_id = ?""", (selected_player,))
-                    c.execute("""DELETE FROM penalties WHERE player_id = ?""", (selected_player,))
-                    c.execute("""DELETE FROM players WHERE id = ?""", (selected_player,))
+                    execute_query(c, """DELETE FROM round_winners WHERE player_id = ?""", (selected_player,))
+                    execute_query(c, """DELETE FROM penalties WHERE player_id = ?""", (selected_player,))
+                    execute_query(c, """DELETE FROM players WHERE id = ?""", (selected_player,))
                     conn.commit()
                     st.success(f"✅ Jugador '{current_name}' eliminado!")
                     st.rerun()
@@ -1216,7 +1232,7 @@ def show_admin():
                     
                     if st.form_submit_button("✏️ Actualizar Penalización"):
                         c = conn.cursor()
-                        c.execute("UPDATE penalties SET amount = ?, reason = ? WHERE id = ?", 
+                        execute_query(c, "UPDATE penalties SET amount = ?, reason = ? WHERE id = ?", 
                                  (new_amount, new_reason, selected_penalty))
                         conn.commit()
                         st.success("✅ Penalización actualizada!")
@@ -1227,7 +1243,7 @@ def show_admin():
                 
                 if st.button("🗑️ Eliminar Penalización", type="primary"):
                     c = conn.cursor()
-                    c.execute("DELETE FROM penalties WHERE id = ?", (selected_penalty,))
+                    execute_query(c, "DELETE FROM penalties WHERE id = ?", (selected_penalty,))
                     conn.commit()
                     st.success("✅ Penalización eliminada!")
                     st.rerun()
@@ -1263,7 +1279,7 @@ def show_admin():
                     if st.form_submit_button("✏️ Actualizar Juego"):
                         c = conn.cursor()
                         try:
-                            c.execute("UPDATE games SET name = ?, points_per_win = ?, description = ? WHERE id = ?",
+                            execute_query(c, "UPDATE games SET name = ?, points_per_win = ?, description = ? WHERE id = ?",
                                      (new_game_name, new_points, new_description, selected_game))
                             conn.commit()
                             st.success("✅ Juego actualizado!")
@@ -1287,12 +1303,12 @@ def show_admin():
                 if st.button("🗑️ Eliminar Juego", type="primary", disabled=not confirm_delete_game):
                     c = conn.cursor()
                     # Delete winners of rounds with this game
-                    c.execute("""DELETE FROM round_winners WHERE round_id IN 
+                    execute_query(c, """DELETE FROM round_winners WHERE round_id IN 
                                 (SELECT id FROM game_rounds WHERE game_id = ?)""", (selected_game,))
                     # Delete rounds
-                    c.execute("DELETE FROM game_rounds WHERE game_id = ?", (selected_game,))
+                    execute_query(c, "DELETE FROM game_rounds WHERE game_id = ?", (selected_game,))
                     # Delete game
-                    c.execute("DELETE FROM games WHERE id = ?", (selected_game,))
+                    execute_query(c, "DELETE FROM games WHERE id = ?", (selected_game,))
                     conn.commit()
                     st.success(f"✅ Juego '{game_row['name']}' eliminado!")
                     st.rerun()
@@ -1337,14 +1353,14 @@ def show_admin():
             if st.button("🗑️ Eliminar Noche de Juego", type="primary", disabled=not confirm_delete_night):
                 c = conn.cursor()
                 # Delete winners of rounds in this night
-                c.execute("""DELETE FROM round_winners WHERE round_id IN 
+                execute_query(c, """DELETE FROM round_winners WHERE round_id IN 
                             (SELECT id FROM game_rounds WHERE game_night_id = ?)""", (selected_night,))
                 # Delete rounds
-                c.execute("DELETE FROM game_rounds WHERE game_night_id = ?", (selected_night,))
+                execute_query(c, "DELETE FROM game_rounds WHERE game_night_id = ?", (selected_night,))
                 # Delete penalties
-                c.execute("DELETE FROM penalties WHERE game_night_id = ?", (selected_night,))
+                execute_query(c, "DELETE FROM penalties WHERE game_night_id = ?", (selected_night,))
                 # Delete night
-                c.execute("DELETE FROM game_nights WHERE id = ?", (selected_night,))
+                execute_query(c, "DELETE FROM game_nights WHERE id = ?", (selected_night,))
                 conn.commit()
                 st.success(f"✅ Noche del {night_row['fecha']} eliminada!")
                 st.rerun()
@@ -1438,7 +1454,7 @@ def show_admin():
             
             if st.form_submit_button("💾 Guardar Configuración"):
                 c = conn.cursor()
-                c.execute("UPDATE settings SET value = ? WHERE key = 'default_penalty_amount'", 
+                execute_query(c, "UPDATE settings SET value = ? WHERE key = 'default_penalty_amount'", 
                          (str(new_penalty),))
                 conn.commit()
                 st.success("✅ Configuración actualizada!")
@@ -1479,16 +1495,16 @@ def show_admin():
                     
                     # Create Season 1
                     try:
-                        c.execute("""INSERT INTO seasons (name, start_date, end_date, is_active) 
+                        execute_query(c, """INSERT INTO seasons (name, start_date, end_date, is_active) 
                                     VALUES (?, ?, ?, ?)""",
                                  ("Temporada 1", "2025-04-08", "2025-12-03", 0))
                         season_id = c.lastrowid
                     except sqlite3.IntegrityError:
-                        c.execute("SELECT id FROM seasons WHERE name = 'Temporada 1'")
+                        execute_query(c, "SELECT id FROM seasons WHERE name = 'Temporada 1'")
                         season_id = c.fetchone()[0]
                     
                     # Check if already imported
-                    c.execute("SELECT COUNT(*) FROM game_nights WHERE season_id = ?", (season_id,))
+                    execute_query(c, "SELECT COUNT(*) FROM game_nights WHERE season_id = ?", (season_id,))
                     if c.fetchone()[0] > 0:
                         st.warning("⚠️ Temporada 1 ya ha sido importada anteriormente.")
                     else:
@@ -1497,10 +1513,10 @@ def show_admin():
                         player_ids = {}
                         for player in players_list:
                             try:
-                                c.execute("INSERT INTO players (name) VALUES (?)", (player,))
+                                execute_query(c, "INSERT INTO players (name) VALUES (?)", (player,))
                                 player_ids[player] = c.lastrowid
                             except sqlite3.IntegrityError:
-                                c.execute("SELECT id FROM players WHERE name = ?", (player,))
+                                execute_query(c, "SELECT id FROM players WHERE name = ?", (player,))
                                 player_ids[player] = c.fetchone()[0]
                         
                         # Add games with correct points
@@ -1512,11 +1528,11 @@ def show_admin():
                         game_ids = {}
                         for game_name, points in games_to_add:
                             try:
-                                c.execute("INSERT INTO games (name, points_per_win) VALUES (?, ?)", 
+                                execute_query(c, "INSERT INTO games (name, points_per_win) VALUES (?, ?)", 
                                          (game_name, points))
                                 game_ids[game_name] = c.lastrowid
                             except sqlite3.IntegrityError:
-                                c.execute("SELECT id FROM games WHERE name = ?", (game_name,))
+                                execute_query(c, "SELECT id FROM games WHERE name = ?", (game_name,))
                                 game_ids[game_name] = c.fetchone()[0]
                         
                         # Import all game nights
@@ -1591,7 +1607,7 @@ def show_admin():
                         
                         for date, rounds, penalties in import_data:
                             # Create night
-                            c.execute("""INSERT INTO game_nights (season_id, date, notes) 
+                            execute_query(c, """INSERT INTO game_nights (season_id, date, notes) 
                                         VALUES (?, ?, ?)""",
                                      (season_id, date, "Importado de temporada anterior"))
                             night_id = c.lastrowid
@@ -1599,7 +1615,7 @@ def show_admin():
                             
                             # Add rounds
                             for round_num, (game, pts, winners) in enumerate(rounds, 1):
-                                c.execute("""INSERT INTO game_rounds (game_night_id, game_id, round_number) 
+                                execute_query(c, """INSERT INTO game_rounds (game_night_id, game_id, round_number) 
                                             VALUES (?, ?, ?)""",
                                          (night_id, game_ids[game], round_num))
                                 round_id = c.lastrowid
@@ -1607,12 +1623,12 @@ def show_admin():
                                 
                                 # Add winners
                                 for winner in winners:
-                                    c.execute("INSERT INTO round_winners (round_id, player_id) VALUES (?, ?)",
+                                    execute_query(c, "INSERT INTO round_winners (round_id, player_id) VALUES (?, ?)",
                                              (round_id, player_ids[winner]))
                             
                             # Add penalties
                             for player, amount in penalties:
-                                c.execute("""INSERT INTO penalties 
+                                execute_query(c, """INSERT INTO penalties 
                                            (game_night_id, player_id, penalty_type, amount, reason) 
                                            VALUES (?, ?, ?, ?, ?)""",
                                          (night_id, player_ids[player], "Ausencia", amount, 
