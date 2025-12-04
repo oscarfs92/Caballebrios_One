@@ -10,6 +10,13 @@ from io import BytesIO
 from PIL import Image
 import os
 
+# PostgreSQL support
+try:
+    import psycopg2
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
+
 # Page configuration
 st.set_page_config(
     page_title="Caballebrios One",
@@ -70,11 +77,35 @@ st.markdown("""
 
 # Database setup
 DB_PATH = os.path.join(os.getcwd(), "caballebrios.db")
+DATABASE_URL = os.environ.get("DATABASE_URL")
+USE_POSTGRES = DATABASE_URL is not None and PSYCOPG2_AVAILABLE
+
+def get_db_connection():
+    """Get database connection (PostgreSQL if DATABASE_URL set, else SQLite)"""
+    if USE_POSTGRES:
+        try:
+            conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+            return conn
+        except Exception as e:
+            st.error(f"PostgreSQL connection failed: {e}. Falling back to SQLite.")
+            return sqlite3.connect(DB_PATH)
+    else:
+        return sqlite3.connect(DB_PATH)
 
 def init_db():
     """Initialize the database with all required tables"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        c = conn.cursor()
+        # PostgreSQL version
+        c.execute('''CREATE TABLE IF NOT EXISTS players
+                     (id SERIAL PRIMARY KEY,
+                      name TEXT NOT NULL UNIQUE,
+                      profile_pic BYTEA,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    else:
+        conn = get_db_connection()
+        c = conn.cursor()
     
     # Players table
     c.execute('''CREATE TABLE IF NOT EXISTS players
@@ -158,7 +189,7 @@ init_db()
 # Helper functions
 def get_active_season():
     """Get the currently active season"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT id, name FROM seasons WHERE is_active = 1 LIMIT 1")
     result = c.fetchone()
@@ -177,7 +208,7 @@ def bytes_to_image(byte_data):
 
 def get_current_leaderboard(season_id):
     """Get real-time leaderboard for a season"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     query = """
     SELECT 
         p.id,
@@ -216,7 +247,7 @@ def main():
         st.markdown("---")
         st.markdown("**Estadísticas Rápidas**")
         
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         total_players = pd.read_sql_query("SELECT COUNT(*) as count FROM players", conn)['count'][0]
         total_games = pd.read_sql_query("SELECT COUNT(*) as count FROM games", conn)['count'][0]
         total_nights = pd.read_sql_query("SELECT COUNT(*) as count FROM game_nights", conn)['count'][0]
@@ -271,7 +302,7 @@ def show_dashboard():
         st.warning("⚠️ ¡Por favor crea y activa una temporada primero!")
         return
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     
     # Current season leaderboard
     st.subheader(f"🏆 Tabla de Posiciones - {active_season[1]}")
@@ -341,7 +372,7 @@ def manage_players():
             submitted = st.form_submit_button("Agregar Jugador")
             
             if submitted and player_name:
-                conn = sqlite3.connect(DB_PATH)
+                conn = get_db_connection()
                 c = conn.cursor()
                 
                 try:
@@ -365,7 +396,7 @@ def manage_players():
     with col2:
         st.subheader("Jugadores Actuales")
         
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         players = pd.read_sql_query("SELECT id, name, profile_pic FROM players ORDER BY name", conn)
         conn.close()
         
@@ -400,7 +431,7 @@ def manage_seasons():
             submitted = st.form_submit_button("Crear Temporada")
             
             if submitted and season_name:
-                conn = sqlite3.connect(DB_PATH)
+                conn = get_db_connection()
                 c = conn.cursor()
                 
                 try:
@@ -422,7 +453,7 @@ def manage_seasons():
     with col2:
         st.subheader("Todas las Temporadas")
         
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         seasons = pd.read_sql_query("""
             SELECT id, name, start_date, end_date, is_active 
             FROM seasons 
@@ -466,7 +497,7 @@ def manage_games():
             submitted = st.form_submit_button("Agregar Juego")
             
             if submitted and game_name:
-                conn = sqlite3.connect(DB_PATH)
+                conn = get_db_connection()
                 c = conn.cursor()
                 
                 try:
@@ -484,7 +515,7 @@ def manage_games():
     with col2:
         st.subheader("Todos los Juegos")
         
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         games = pd.read_sql_query("SELECT * FROM games ORDER BY name", conn)
         conn.close()
         
@@ -502,7 +533,7 @@ def manage_games():
                                                key=f"desc_{game['id']}")
                         
                         if st.form_submit_button("Actualizar"):
-                            conn = sqlite3.connect(DB_PATH)
+                            conn = get_db_connection()
                             c = conn.cursor()
                             c.execute("""UPDATE games 
                                        SET points_per_win = ?, description = ? 
@@ -526,7 +557,7 @@ def manage_game_nights():
     
     st.info(f"Registrando para: **{active_season[1]}**")
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     
     # Get all players and games for dropdowns
     players = pd.read_sql_query("SELECT id, name FROM players ORDER BY name", conn)
@@ -755,7 +786,7 @@ def show_reports():
         st.warning("⚠️ ¡Por favor crea y activa una temporada primero!")
         return
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     
     # Season leaderboard with detailed stats
     st.subheader("🏆 Tabla de Posiciones de Temporada")
@@ -957,7 +988,7 @@ def show_admin():
         "🔧 Configuración"
     ])
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     
     # Tab 1: Delete Rounds
     with admin_tabs[0]:
