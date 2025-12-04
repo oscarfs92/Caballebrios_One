@@ -110,7 +110,7 @@ def init_db():
                       name TEXT NOT NULL UNIQUE,
                       start_date DATE,
                       end_date DATE,
-                      is_active BOOLEAN DEFAULT true,
+                      is_active INTEGER DEFAULT 0,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         
         c.execute('''CREATE TABLE IF NOT EXISTS games
@@ -248,6 +248,15 @@ def get_active_season():
     result = c.fetchone()
     conn.close()
     return result
+
+def execute_query(c, query, params=None):
+    """Execute query with proper parameter handling for both SQLite and PostgreSQL"""
+    if USE_POSTGRES and params:
+        # Convert ? to %s for PostgreSQL
+        pg_query = query.replace('?', '%s')
+        c.execute(pg_query, params)
+    else:
+        c.execute(query, params) if params else c.execute(query)
 
 def image_to_bytes(image):
     """Convert PIL Image to bytes"""
