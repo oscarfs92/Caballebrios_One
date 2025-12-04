@@ -94,91 +94,144 @@ def get_db_connection():
 
 def init_db():
     """Initialize the database with all required tables"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    
     if USE_POSTGRES:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        c = conn.cursor()
-        # PostgreSQL version
+        # PostgreSQL SQL syntax
         c.execute('''CREATE TABLE IF NOT EXISTS players
                      (id SERIAL PRIMARY KEY,
                       name TEXT NOT NULL UNIQUE,
                       profile_pic BYTEA,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS seasons
+                     (id SERIAL PRIMARY KEY,
+                      name TEXT NOT NULL UNIQUE,
+                      start_date DATE,
+                      end_date DATE,
+                      is_active BOOLEAN DEFAULT true,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS games
+                     (id SERIAL PRIMARY KEY,
+                      name TEXT NOT NULL UNIQUE,
+                      points_per_win INTEGER NOT NULL,
+                      description TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS game_nights
+                     (id SERIAL PRIMARY KEY,
+                      season_id INTEGER NOT NULL,
+                      date DATE NOT NULL,
+                      notes TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (season_id) REFERENCES seasons(id))''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS game_rounds
+                     (id SERIAL PRIMARY KEY,
+                      game_night_id INTEGER NOT NULL,
+                      game_id INTEGER NOT NULL,
+                      round_number INTEGER NOT NULL,
+                      notes TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
+                      FOREIGN KEY (game_id) REFERENCES games(id))''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS round_winners
+                     (id SERIAL PRIMARY KEY,
+                      round_id INTEGER NOT NULL,
+                      player_id INTEGER NOT NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (round_id) REFERENCES game_rounds(id),
+                      FOREIGN KEY (round_id) REFERENCES game_rounds(id),
+                      FOREIGN KEY (player_id) REFERENCES players(id))''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS penalties
+                     (id SERIAL PRIMARY KEY,
+                      game_night_id INTEGER NOT NULL,
+                      player_id INTEGER NOT NULL,
+                      penalty_type TEXT NOT NULL,
+                      amount REAL NOT NULL,
+                      reason TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
+                      FOREIGN KEY (player_id) REFERENCES players(id))''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS settings
+                     (key TEXT PRIMARY KEY,
+                      value TEXT NOT NULL)''')
     else:
-        conn = get_db_connection()
-        c = conn.cursor()
-    
-    # Players table
-    c.execute('''CREATE TABLE IF NOT EXISTS players
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT NOT NULL UNIQUE,
-                  profile_pic BLOB,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    
-    # Seasons table
-    c.execute('''CREATE TABLE IF NOT EXISTS seasons
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT NOT NULL UNIQUE,
-                  start_date DATE,
-                  end_date DATE,
-                  is_active BOOLEAN DEFAULT 1,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    
-    # Games table
-    c.execute('''CREATE TABLE IF NOT EXISTS games
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT NOT NULL UNIQUE,
-                  points_per_win INTEGER NOT NULL,
-                  description TEXT,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    
-    # Game nights table
-    c.execute('''CREATE TABLE IF NOT EXISTS game_nights
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  season_id INTEGER NOT NULL,
-                  date DATE NOT NULL,
-                  notes TEXT,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (season_id) REFERENCES seasons(id))''')
-    
-    # Game rounds table (tracks each round played)
-    c.execute('''CREATE TABLE IF NOT EXISTS game_rounds
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  game_night_id INTEGER NOT NULL,
-                  game_id INTEGER NOT NULL,
-                  round_number INTEGER NOT NULL,
-                  notes TEXT,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
-                  FOREIGN KEY (game_id) REFERENCES games(id))''')
-    
-    # Winners table (tracks winners per round - multiple winners possible)
-    c.execute('''CREATE TABLE IF NOT EXISTS round_winners
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  round_id INTEGER NOT NULL,
-                  player_id INTEGER NOT NULL,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (round_id) REFERENCES game_rounds(id),
-                  FOREIGN KEY (player_id) REFERENCES players(id))''')
-    
-    # Penalties table
-    c.execute('''CREATE TABLE IF NOT EXISTS penalties
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  game_night_id INTEGER NOT NULL,
-                  player_id INTEGER NOT NULL,
-                  penalty_type TEXT NOT NULL,
-                  amount REAL NOT NULL,
-                  reason TEXT,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
-                  FOREIGN KEY (player_id) REFERENCES players(id))''')
-    
-    # Settings table for global variables
-    c.execute('''CREATE TABLE IF NOT EXISTS settings
-                 (key TEXT PRIMARY KEY,
-                  value TEXT NOT NULL)''')
+        # SQLite SQL syntax
+        c.execute('''CREATE TABLE IF NOT EXISTS players
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      name TEXT NOT NULL UNIQUE,
+                      profile_pic BLOB,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS seasons
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      name TEXT NOT NULL UNIQUE,
+                      start_date DATE,
+                      end_date DATE,
+                      is_active BOOLEAN DEFAULT 1,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS games
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      name TEXT NOT NULL UNIQUE,
+                      points_per_win INTEGER NOT NULL,
+                      description TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS game_nights
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      season_id INTEGER NOT NULL,
+                      date DATE NOT NULL,
+                      notes TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (season_id) REFERENCES seasons(id))''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS game_rounds
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      game_night_id INTEGER NOT NULL,
+                      game_id INTEGER NOT NULL,
+                      round_number INTEGER NOT NULL,
+                      notes TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
+                      FOREIGN KEY (game_id) REFERENCES games(id))''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS round_winners
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      round_id INTEGER NOT NULL,
+                      player_id INTEGER NOT NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (round_id) REFERENCES game_rounds(id),
+                      FOREIGN KEY (player_id) REFERENCES players(id))''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS penalties
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      game_night_id INTEGER NOT NULL,
+                      player_id INTEGER NOT NULL,
+                      penalty_type TEXT NOT NULL,
+                      amount REAL NOT NULL,
+                      reason TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (game_night_id) REFERENCES game_nights(id),
+                      FOREIGN KEY (player_id) REFERENCES players(id))''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS settings
+                     (key TEXT PRIMARY KEY,
+                      value TEXT NOT NULL)''')
     
     # Insert default penalty amount if not exists
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('default_penalty_amount', '10')")
+    if USE_POSTGRES:
+        c.execute("INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING", 
+                  ('default_penalty_amount', '10'))
+    else:
+        c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", 
+                  ('default_penalty_amount', '10'))
     
     conn.commit()
     conn.close()
