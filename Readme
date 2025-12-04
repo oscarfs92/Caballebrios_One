@@ -1,0 +1,91 @@
+# 🎮 Caballebrios One
+
+A comprehensive game night tracking system built with Streamlit.
+
+## Features
+
+✅ **Player Management** - Add players with profile pictures
+✅ **Season Tracking** - Create and manage multiple seasons with separate scoring
+✅ **Game Library** - Define games with custom point values and win conditions
+✅ **Game Night Recording** - Track multiple games, rounds, and winners per night
+✅ **Penalty System** - Record absence penalties and custom penalties
+✅ **Visual Reports** - Beautiful charts and statistics including:
+- Season leaderboard
+- Points progression over time
+- Best game per player
+- Game popularity analytics
+- Win distribution
+- Attendance tracking
+- Penalty summaries
+
+## Installation
+
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Run the app:
+```bash
+streamlit run caballebrios_one.py
+```
+
+3. Open your browser to `http://localhost:8501`
+
+## Quick Start Guide
+
+### First Time Setup
+
+1. **Add Players** - Go to the "Players" tab and add all your players
+2. **Create a Season** - Go to "Seasons" tab and create your first season (mark as active)
+3. **Add Games** - Go to "Games" tab and add all the games you play
+4. **Configure Settings** - Set your default penalty amount in the code if needed (default: $10)
+
+### Recording a Game Night
+
+1. Go to **Game Nights** tab
+2. Click "Record New Game Night" and set the date
+3. For each game played:
+   - Select the game
+   - Enter round number (if playing multiple rounds)
+   - Select winner(s) - multiple winners are supported!
+4. Record any penalties for absent players
+
+### Viewing Reports
+
+Go to the **Reports** tab to see:
+- Current leaderboard
+- Points progression charts
+- Player statistics
+- Fun facts and insights
+
+## Database
+
+The app uses SQLite and stores data in `caballebrios.db` in your home directory. 
+
+## Tips
+
+- You can edit game point values and descriptions at any time
+- Multiple winners per round are supported (great for team games!)
+- Track multiple rounds of the same game on one night
+- Custom penalties allow you to penalize players for other infractions beyond absence
+- Export data by accessing the SQLite database directly
+
+## Architecture
+
+- **Frontend**: Streamlit with custom CSS
+- **Backend**: SQLite database
+- **Visualizations**: Plotly for interactive charts
+- **Image Handling**: PIL for profile pictures
+
+## Future Enhancements Ideas
+
+- Export season reports to PDF
+- Player head-to-head statistics
+- Game recommendations based on play history
+- Mobile-responsive design improvements
+- Multi-season comparison reports
+
+---
+
+Built with ❤️ for game nights!
