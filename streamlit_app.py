@@ -103,6 +103,15 @@ def execute_query(c, query, params=None):
     else:
         c.execute(query)
 
+def read_sql_query(query, conn, params=None):
+    """Wrapper for read_sql_query that handles SQLite vs PostgreSQL placeholder syntax"""
+    if params and USE_POSTGRES:
+        # Convert ? to %s for PostgreSQL
+        pg_query = query.replace('?', '%s')
+        return read_sql_query(pg_query, conn, params=params)
+    else:
+        return read_sql_query(query, conn, params=params)
+
 def init_db():
     """Initialize the database with all required tables"""
     conn = get_db_connection()
@@ -304,7 +313,7 @@ def get_current_leaderboard(season_id):
     GROUP BY p.id, p.name
     ORDER BY total_points DESC
     """
-    leaderboard = pd.read_sql_query(query, conn, params=(season_id,))
+    leaderboard = read_sql_query(query, conn, params=(season_id,))
     conn.close()
     return leaderboard
 
@@ -328,9 +337,9 @@ def main():
         st.markdown("**Estadísticas Rápidas**")
         
         conn = get_db_connection()
-        total_players = pd.read_sql_query("SELECT COUNT(*) as count FROM players", conn)['count'][0]
-        total_games = pd.read_sql_query("SELECT COUNT(*) as count FROM games", conn)['count'][0]
-        total_nights = pd.read_sql_query("SELECT COUNT(*) as count FROM game_nights", conn)['count'][0]
+        total_players = read_sql_query("SELECT COUNT(*) as count FROM players", conn)['count'][0]
+        total_games = read_sql_query("SELECT COUNT(*) as count FROM games", conn)['count'][0]
+        total_nights = read_sql_query("SELECT COUNT(*) as count FROM game_nights", conn)['count'][0]
         conn.close()
         
         col1, col2, col3 = st.columns(3)
@@ -416,7 +425,7 @@ def show_dashboard():
     # Recent activity
     st.subheader("📅 Noches de Juego Recientes")
     
-    recent_nights = pd.read_sql_query("""
+    recent_nights = read_sql_query("""
         SELECT 
             gn.date as fecha,
             gn.notes as notas,
@@ -477,7 +486,7 @@ def manage_players():
         st.subheader("Jugadores Actuales")
         
         conn = get_db_connection()
-        players = pd.read_sql_query("SELECT id, name, profile_pic FROM players ORDER BY name", conn)
+        players = read_sql_query("SELECT id, name, profile_pic FROM players ORDER BY name", conn)
         conn.close()
         
         if not players.empty:
@@ -534,7 +543,7 @@ def manage_seasons():
         st.subheader("Todas las Temporadas")
         
         conn = get_db_connection()
-        seasons = pd.read_sql_query("""
+        seasons = read_sql_query("""
             SELECT id, name, start_date, end_date, is_active 
             FROM seasons 
             ORDER BY start_date DESC
@@ -596,7 +605,7 @@ def manage_games():
         st.subheader("Todos los Juegos")
         
         conn = get_db_connection()
-        games = pd.read_sql_query("SELECT * FROM games ORDER BY name", conn)
+        games = read_sql_query("SELECT * FROM games ORDER BY name", conn)
         conn.close()
         
         if not games.empty:
@@ -640,8 +649,8 @@ def manage_game_nights():
     conn = get_db_connection()
     
     # Get all players and games for dropdowns
-    players = pd.read_sql_query("SELECT id, name FROM players ORDER BY name", conn)
-    games = pd.read_sql_query("SELECT id, name, points_per_win FROM games ORDER BY name", conn)
+    players = read_sql_query("SELECT id, name FROM players ORDER BY name", conn)
+    games = read_sql_query("SELECT id, name, points_per_win FROM games ORDER BY name", conn)
     
     if players.empty:
         st.error("⚠️ ¡Primero debes agregar jugadores en la pestaña 'Jugadores'!")
@@ -657,7 +666,7 @@ def manage_game_nights():
     st.subheader("1️⃣ Seleccionar o Crear Noche de Juego")
     
     # Get recent game nights
-    recent_nights = pd.read_sql_query("""
+    recent_nights = read_sql_query("""
         SELECT id, date, notes 
         FROM game_nights 
         WHERE season_id = ?
@@ -705,7 +714,7 @@ def manage_game_nights():
         st.subheader("2️⃣ Registrar Juego y Ganadores")
         
         # Show current scoreboard for this night
-        night_scores = pd.read_sql_query("""
+        night_scores = read_sql_query("""
             SELECT 
                 p.name as jugador,
                 COUNT(DISTINCT rw.id) as victorias,
@@ -781,7 +790,7 @@ def manage_game_nights():
         st.markdown("---")
         st.subheader("📋 Juegos Jugados Esta Noche")
         
-        rounds_played = pd.read_sql_query("""
+        rounds_played = read_sql_query("""
             SELECT 
                 g.name as juego,
                 gr.round_number as ronda,
@@ -805,7 +814,7 @@ def manage_game_nights():
         st.markdown("---")
         st.subheader("💰 Registrar Penalización")
         
-        default_penalty = float(pd.read_sql_query(
+        default_penalty = float(read_sql_query(
             "SELECT value FROM settings WHERE key = 'default_penalty_amount'", 
             conn)['value'][0])
         
@@ -839,7 +848,7 @@ def manage_game_nights():
                 st.rerun()
         
         # Show penalties for this night
-        penalties_tonight = pd.read_sql_query("""
+        penalties_tonight = read_sql_query("""
             SELECT 
                 p.name as jugador,
                 pen.penalty_type as tipo,
@@ -890,7 +899,7 @@ def show_reports():
     ORDER BY puntos_totales DESC
     """
     
-    leaderboard = pd.read_sql_query(leaderboard_query, conn, params=(active_season[0], active_season[0]))
+    leaderboard = read_sql_query(leaderboard_query, conn, params=(active_season[0], active_season[0]))
     
     if not leaderboard.empty and leaderboard['puntos_totales'].sum() > 0:
         st.dataframe(leaderboard, width='stretch', hide_index=True)
@@ -912,7 +921,7 @@ def show_reports():
         ORDER BY gn.date, p.name
         """
         
-        progression = pd.read_sql_query(progression_query, conn, params=(active_season[0],))
+        progression = read_sql_query(progression_query, conn, params=(active_season[0],))
         
         if not progression.empty:
             fig = px.line(progression, x='fecha', y='puntos_acumulados', color='name',
@@ -951,7 +960,7 @@ def show_reports():
         ORDER BY puntos_ganados DESC
         """
         
-        best_games = pd.read_sql_query(best_game_query, conn, params=(active_season[0], active_season[0]))
+        best_games = read_sql_query(best_game_query, conn, params=(active_season[0], active_season[0]))
         
         if not best_games.empty:
             st.dataframe(best_games, width='stretch', hide_index=True)
@@ -959,7 +968,7 @@ def show_reports():
         # Game popularity
         st.subheader("🎲 Popularidad de Juegos")
         
-        game_stats = pd.read_sql_query("""
+        game_stats = read_sql_query("""
             SELECT 
                 g.name as juego,
                 COUNT(DISTINCT gr.id) as veces_jugado,
@@ -984,7 +993,7 @@ def show_reports():
         # Win distribution pie chart
         st.subheader("🥧 Distribución de Victorias")
         
-        win_dist = pd.read_sql_query("""
+        win_dist = read_sql_query("""
             SELECT 
                 p.name as jugador,
                 COUNT(*) as victorias
@@ -1005,7 +1014,7 @@ def show_reports():
         # Attendance tracking
         st.subheader("📅 Asistencia")
         
-        attendance = pd.read_sql_query("""
+        attendance = read_sql_query("""
             SELECT 
                 p.name as jugador,
                 COUNT(DISTINCT gn.id) as noches_asistidas,
@@ -1031,7 +1040,7 @@ def show_reports():
         # Penalties summary
         st.subheader("💰 Resumen de Penalizaciones")
         
-        penalties = pd.read_sql_query("""
+        penalties = read_sql_query("""
             SELECT 
                 p.name as jugador,
                 COUNT(*) as cantidad_penalizaciones,
@@ -1094,7 +1103,7 @@ def show_admin():
             ORDER BY gn.date DESC, gr.id DESC
             """
             
-            rounds_df = pd.read_sql_query(rounds_query, conn, params=(active_season[0],))
+            rounds_df = read_sql_query(rounds_query, conn, params=(active_season[0],))
             
             if not rounds_df.empty:
                 st.dataframe(rounds_df, width='stretch', hide_index=True)
@@ -1125,7 +1134,7 @@ def show_admin():
     with admin_tabs[1]:
         st.subheader("Editar o Eliminar Jugadores")
         
-        players_df = pd.read_sql_query("SELECT id, name FROM players ORDER BY name", conn)
+        players_df = read_sql_query("SELECT id, name FROM players ORDER BY name", conn)
         
         if not players_df.empty:
             st.dataframe(players_df, width='stretch', hide_index=True)
@@ -1211,7 +1220,7 @@ def show_admin():
         ORDER BY gn.date DESC
         """
         
-        penalties_df = pd.read_sql_query(penalties_query, conn)
+        penalties_df = read_sql_query(penalties_query, conn)
         
         if not penalties_df.empty:
             st.dataframe(penalties_df, width='stretch', hide_index=True)
@@ -1256,7 +1265,7 @@ def show_admin():
     with admin_tabs[3]:
         st.subheader("Editar o Eliminar Juegos")
         
-        games_df = pd.read_sql_query("SELECT id, name, points_per_win, description FROM games ORDER BY name", conn)
+        games_df = read_sql_query("SELECT id, name, points_per_win, description FROM games ORDER BY name", conn)
         
         if not games_df.empty:
             st.dataframe(games_df, width='stretch', hide_index=True)
@@ -1294,7 +1303,7 @@ def show_admin():
                 st.warning("Esto eliminará todas las rondas jugadas de este juego.")
                 
                 # Check how many rounds would be deleted
-                rounds_count = pd.read_sql_query(
+                rounds_count = read_sql_query(
                     "SELECT COUNT(*) as count FROM game_rounds WHERE game_id = ?", 
                     conn, params=(selected_game,))['count'][0]
                 
@@ -1335,7 +1344,7 @@ def show_admin():
         ORDER BY gn.date DESC
         """
         
-        nights_df = pd.read_sql_query(nights_query, conn)
+        nights_df = read_sql_query(nights_query, conn)
         
         if not nights_df.empty:
             st.dataframe(nights_df, width='stretch', hide_index=True)
@@ -1405,7 +1414,7 @@ def show_admin():
         if st.button("▶️ Ejecutar Consulta"):
             if custom_query.strip().upper().startswith("SELECT"):
                 try:
-                    result = pd.read_sql_query(custom_query, conn)
+                    result = read_sql_query(custom_query, conn)
                     st.success(f"✅ Consulta ejecutada. {len(result)} filas devueltas.")
                     st.dataframe(result, width='stretch')
                     
@@ -1432,7 +1441,7 @@ def show_admin():
             st.metric("Tamaño del Archivo", f"{os.path.getsize(DB_PATH) / 1024:.2f} KB")
         
         with col2:
-            tables_count = pd.read_sql_query(
+            tables_count = read_sql_query(
                 "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'", 
                 conn)['count'][0]
             st.metric("Tablas en la BD", tables_count)
@@ -1442,7 +1451,7 @@ def show_admin():
         st.subheader("Configuración Global")
         
         # Default penalty amount
-        current_penalty = float(pd.read_sql_query(
+        current_penalty = float(read_sql_query(
             "SELECT value FROM settings WHERE key = 'default_penalty_amount'", 
             conn)['value'][0])
         
@@ -1656,7 +1665,7 @@ def show_admin():
             (SELECT COUNT(*) FROM penalties) as penalizaciones
         """
 
-        stats = pd.read_sql_query(total_query, conn).iloc[0]
+        stats = read_sql_query(total_query, conn).iloc[0]
 
         st.metric("Total Jugadores", int(stats['jugadores']))
         st.metric("Total Juegos", int(stats['juegos']))
