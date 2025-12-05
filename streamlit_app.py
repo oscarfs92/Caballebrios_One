@@ -104,13 +104,13 @@ def execute_query(c, query, params=None):
         c.execute(query)
 
 def read_sql_query(query, conn, params=None):
-    """Wrapper for read_sql_query that handles SQLite vs PostgreSQL placeholder syntax"""
+    """Wrapper for pd.read_sql_query that handles SQLite vs PostgreSQL placeholder syntax"""
     if params and USE_POSTGRES:
         # Convert ? to %s for PostgreSQL
         pg_query = query.replace('?', '%s')
-        return read_sql_query(pg_query, conn, params=params)
+        return pd.read_sql_query(pg_query, conn, params=params)
     else:
-        return read_sql_query(query, conn, params=params)
+        return pd.read_sql_query(query, conn, params=params)
 
 def init_db():
     """Initialize the database with all required tables"""
