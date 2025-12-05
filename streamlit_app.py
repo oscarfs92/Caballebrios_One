@@ -9,6 +9,8 @@ import base64
 from io import BytesIO
 from PIL import Image
 import os
+import tempfile
+import sys
 
 # PostgreSQL support
 try:
@@ -76,7 +78,42 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Database setup
-DB_PATH = os.path.join(os.getcwd(), "caballebrios.db")
+def resolve_db_path():
+    """Return a writable path for the SQLite database.
+
+    Preference order:
+    1. Environment variable `SQLITE_DB_PATH` if set.
+    2. Current working directory if writable.
+    3. User home directory.
+    4. System temp directory.
+    """
+    env_path = os.environ.get('SQLITE_DB_PATH')
+    if env_path:
+        return os.path.abspath(env_path)
+
+    # Prefer current working directory if writable
+    cwd = os.getcwd()
+    try:
+        testfile = os.path.join(cwd, f".writetest_{os.getpid()}")
+        with open(testfile, 'w'):
+            pass
+        os.remove(testfile)
+        return os.path.join(cwd, 'caballebrios.db')
+    except Exception:
+        pass
+
+    # Fallback to user home
+    try:
+        home = str(Path.home())
+        db_home = os.path.join(home, 'caballebrios.db')
+        parent = Path(db_home).parent
+        parent.mkdir(parents=True, exist_ok=True)
+        return db_home
+    except Exception:
+        # Final fallback to system temp directory
+        return os.path.join(tempfile.gettempdir(), 'caballebrios.db')
+
+DB_PATH = resolve_db_path()
 DATABASE_URL = os.environ.get("DATABASE_URL")
 USE_POSTGRES = DATABASE_URL is not None and PSYCOPG2_AVAILABLE
 
@@ -88,8 +125,18 @@ def get_db_connection():
             return conn
         except Exception as e:
             st.error(f"PostgreSQL connection failed: {e}. Falling back to SQLite.")
+            # Ensure parent directory exists before creating SQLite file
+            try:
+                Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
             return sqlite3.connect(DB_PATH)
     else:
+        # Ensure parent directory exists before creating SQLite file
+        try:
+            Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
         return sqlite3.connect(DB_PATH)
 
 def execute_query(c, query, params=None):
