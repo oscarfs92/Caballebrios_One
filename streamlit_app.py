@@ -276,14 +276,6 @@ def get_active_season():
         conn.close()
     return result
 
-def execute_query(c, query, params=None):
-    """Execute query with proper parameter handling for both SQLite and PostgreSQL"""
-    if USE_POSTGRES and params:
-        # Convert ? to %s for PostgreSQL
-        pg_query = query.replace('?', '%s')
-        execute_query(c, pg_query, params)
-    else:
-        execute_query(c, query, params) if params else execute_query(c, query)
 
 def image_to_bytes(image):
     """Convert PIL Image to bytes"""
