@@ -104,13 +104,22 @@ def execute_query(c, query, params=None):
         c.execute(query)
 
 def read_sql_query(query, conn, params=None):
-    """Wrapper for pd.read_sql_query that handles SQLite vs PostgreSQL placeholder syntax"""
+    """Wrapper for pd.read_sql_query that handles SQLite vs PostgreSQL placeholder syntax.
+
+    - Converts SQLite-style `?` placeholders to PostgreSQL `%s` when using Postgres.
+    - Converts `GROUP_CONCAT(...)` to `string_agg(...)` for PostgreSQL.
+    """
     if params and USE_POSTGRES:
         # Convert ? to %s for PostgreSQL
         pg_query = query.replace('?', '%s')
+        # Convert GROUP_CONCAT to string_agg for PostgreSQL
+        pg_query = pg_query.replace('GROUP_CONCAT(', 'string_agg(')
+        # If the pattern used a literal separator like ", ', ')", adjust to ORDER BY 1 for string_agg
+        pg_query = pg_query.replace(", ', ')", ", ', ' ORDER BY 1)")
         return pd.read_sql_query(pg_query, conn, params=params)
-    else:
-        return pd.read_sql_query(query, conn, params=params)
+
+    # Default: pass through to pandas (works for SQLite and simple queries)
+    return pd.read_sql_query(query, conn, params=params)
 
 def init_db():
     """Initialize the database with all required tables"""
@@ -426,7 +435,7 @@ def show_dashboard():
         FROM game_nights gn
         LEFT JOIN game_rounds gr ON gn.id = gr.game_night_id
         WHERE gn.season_id = ?
-        GROUP BY gn.id
+         GROUP BY gn.id, gn.date, gn.notes
         ORDER BY gn.date DESC
         LIMIT 5
     """, conn, params=(active_season[0],))
@@ -793,7 +802,7 @@ def manage_game_nights():
             LEFT JOIN round_winners rw ON gr.id = rw.round_id
             LEFT JOIN players p ON rw.player_id = p.id
             WHERE gr.game_night_id = ?
-            GROUP BY gr.id
+             GROUP BY gr.id, g.name, gr.round_number, g.points_per_win
             ORDER BY gr.created_at DESC
         """, conn, params=(selected_night_id,))
         
@@ -970,7 +979,7 @@ def show_reports():
             JOIN game_nights gn ON gr.game_night_id = gn.id
             LEFT JOIN round_winners rw ON gr.id = rw.round_id
             WHERE gn.season_id = ?
-            GROUP BY g.id
+             GROUP BY g.id, g.name
             ORDER BY veces_jugado DESC
         """, conn, params=(active_season[0],))
         
@@ -994,7 +1003,7 @@ def show_reports():
             JOIN game_rounds gr ON rw.round_id = gr.id
             JOIN game_nights gn ON gr.game_night_id = gn.id
             WHERE gn.season_id = ?
-            GROUP BY p.id
+             GROUP BY p.id, p.name
         """, conn, params=(active_season[0],))
         
         if not win_dist.empty:
@@ -1041,7 +1050,7 @@ def show_reports():
             JOIN penalties pen ON p.id = pen.player_id
             JOIN game_nights gn ON pen.game_night_id = gn.id
             WHERE gn.season_id = ?
-            GROUP BY p.id
+             GROUP BY p.id, p.name
             ORDER BY monto_total DESC
         """, conn, params=(active_season[0],))
         
@@ -1091,7 +1100,7 @@ def show_admin():
             LEFT JOIN round_winners rw ON gr.id = rw.round_id
             LEFT JOIN players p ON rw.player_id = p.id
             WHERE gn.season_id = ?
-            GROUP BY gr.id
+             GROUP BY gr.id, gn.date, g.name, gr.round_number, g.points_per_win
             ORDER BY gn.date DESC, gr.id DESC
             """
             
@@ -1332,7 +1341,7 @@ def show_admin():
         FROM game_nights gn
         JOIN seasons s ON gn.season_id = s.id
         LEFT JOIN game_rounds gr ON gn.id = gr.game_night_id
-        GROUP BY gn.id
+         GROUP BY gn.id, gn.date, s.name, gn.notes
         ORDER BY gn.date DESC
         """
         
