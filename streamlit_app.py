@@ -598,11 +598,15 @@ def manage_seasons():
                     if not season['is_active']:
                         if st.button("Activar", key=f"activate_{season['id']}"):
                             c = conn.cursor()
-                            execute_query(c, "UPDATE seasons SET is_active = 0")
-                            execute_query(c, "UPDATE seasons SET is_active = 1 WHERE id = ?", (season['id'],))
-                            conn.commit()
-                            st.success("¡Temporada activada!")
-                            st.rerun()
+                            try:
+                                execute_query(c, "UPDATE seasons SET is_active = 0")
+                                execute_query(c, "UPDATE seasons SET is_active = 1 WHERE id = ?", (season['id'],))
+                                conn.commit()
+                                st.success("¡Temporada activada!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al activar temporada: {e}")
+                                conn.rollback()
         else:
             st.info("¡No hay temporadas creadas!")
         
