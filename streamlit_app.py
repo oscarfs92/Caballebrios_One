@@ -11,6 +11,10 @@ from PIL import Image
 import os
 import tempfile
 import sys
+import warnings
+
+# Suppress pandas SQLAlchemy warning
+warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy connectable')
 
 # PostgreSQL support
 try:
@@ -1486,13 +1490,38 @@ def show_admin():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.metric("Tamaño del Archivo", f"{os.path.getsize(DB_PATH) / 1024:.2f} KB")
+            # Get database size (works for both SQLite and PostgreSQL)
+            try:
+                if USE_POSTGRES:
+                    # PostgreSQL: use pg_database_size function
+                    db_size_query = "SELECT pg_size_pretty(pg_database_size(current_database())) as size"
+                    db_size_df = read_sql_query(db_size_query, conn)
+                    db_size = db_size_df['size'].iloc[0] if not db_size_df.empty else "N/A"
+                else:
+                    # SQLite: use file size
+                    if os.path.exists(DB_PATH):
+                        db_size = f"{os.path.getsize(DB_PATH) / 1024:.2f} KB"
+                    else:
+                        db_size = "N/A"
+                st.metric("Tamaño de la Base de Datos", db_size)
+            except Exception as e:
+                st.metric("Tamaño de la Base de Datos", "N/A")
         
         with col2:
-            tables_count = read_sql_query(
-                "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'", 
-                conn)['count'][0]
-            st.metric("Tablas en la BD", tables_count)
+            try:
+                if USE_POSTGRES:
+                    # PostgreSQL: count tables from information_schema
+                    tables_count = read_sql_query(
+                        "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public'",
+                        conn)['count'][0]
+                else:
+                    # SQLite: use sqlite_master
+                    tables_count = read_sql_query(
+                        "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'",
+                        conn)['count'][0]
+                st.metric("Tablas en la BD", tables_count)
+            except Exception as e:
+                st.metric("Tablas en la BD", "N/A")
     
     # Tab 7: Settings
     with admin_tabs[6]:
