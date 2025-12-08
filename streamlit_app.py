@@ -102,8 +102,13 @@ def get_db_connection():
     return sqlite3.connect(DB_PATH)
 
 def execute_query(c, query, params=None):
-    """Execute query with proper parameter placeholders for both SQLite and PostgreSQL"""
-    if params and USE_POSTGRES:
+    """Execute query with proper parameter placeholders for both SQLite and PostgreSQL.
+    
+    Detects the connection type and uses appropriate parameter placeholders.
+    """
+    is_postgres = isinstance(c, psycopg2.extensions.cursor) if PSYCOPG2_AVAILABLE else False
+    
+    if params and is_postgres:
         # Convert ? to %s for PostgreSQL
         pg_query = query.replace('?', '%s')
         c.execute(pg_query, params)
@@ -119,7 +124,10 @@ def read_sql_query(query, conn, params=None):
     - Converts `GROUP_CONCAT(...)` to `string_agg(...)` for PostgreSQL.
     - Uses DATABASE_URL string URI with pandas for PostgreSQL (avoids psycopg2 warning).
     """
-    if USE_POSTGRES:
+    # Detect actual connection type
+    is_postgres = isinstance(conn, psycopg2.extensions.connection) if PSYCOPG2_AVAILABLE else False
+    
+    if is_postgres:
         # PostgreSQL: convert SQLite syntax to PostgreSQL syntax
         pg_query = query.replace('?', '%s')
         pg_query = pg_query.replace('GROUP_CONCAT(', 'string_agg(')
