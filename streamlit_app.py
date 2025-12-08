@@ -315,10 +315,7 @@ def get_active_season():
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        if USE_POSTGRES:
-            execute_query(c, "SELECT id, name FROM seasons WHERE is_active = %s LIMIT 1", (1,))
-        else:
-            execute_query(c, "SELECT id, name FROM seasons WHERE is_active = ?", (1,))
+        execute_query(c, "SELECT id, name FROM seasons WHERE is_active = ? LIMIT 1", (True,))
         result = c.fetchone()
     except Exception as e:
         result = None
@@ -574,11 +571,11 @@ def manage_seasons():
                 try:
                     # If making this active, deactivate others
                     if make_active:
-                        execute_query(c, "UPDATE seasons SET is_active = 0")
+                        execute_query(c, "UPDATE seasons SET is_active = FALSE")
                     
                     execute_query(c, """INSERT INTO seasons (name, start_date, end_date, is_active) 
                                 VALUES (?, ?, ?, ?)""",
-                             (season_name, start_date, end_date, 1 if make_active else 0))
+                             (season_name, start_date, end_date, True if make_active else False))
                     conn.commit()
                     st.success(f"✅ ¡Temporada '{season_name}' creada!")
                     st.rerun()
@@ -609,8 +606,8 @@ def manage_seasons():
                         if st.button("Activar", key=f"activate_{season['id']}"):
                             c = conn.cursor()
                             try:
-                                execute_query(c, "UPDATE seasons SET is_active = 0")
-                                execute_query(c, "UPDATE seasons SET is_active = 1 WHERE id = ?", (season['id'],))
+                                execute_query(c, "UPDATE seasons SET is_active = FALSE")
+                                execute_query(c, "UPDATE seasons SET is_active = TRUE WHERE id = ?", (season['id'],))
                                 conn.commit()
                                 st.success("¡Temporada activada!")
                                 st.rerun()
