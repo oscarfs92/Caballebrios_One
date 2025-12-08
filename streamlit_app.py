@@ -78,66 +78,28 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Database setup
-def resolve_db_path():
-    """Return a writable path for the SQLite database.
-
-    Preference order:
-    1. Environment variable `SQLITE_DB_PATH` if set.
-    2. Current working directory if writable.
-    3. User home directory.
-    4. System temp directory.
-    """
-    env_path = os.environ.get('SQLITE_DB_PATH')
-    if env_path:
-        return os.path.abspath(env_path)
-
-    # Prefer current working directory if writable
-    cwd = os.getcwd()
-    try:
-        testfile = os.path.join(cwd, f".writetest_{os.getpid()}")
-        with open(testfile, 'w'):
-            pass
-        os.remove(testfile)
-        return os.path.join(cwd, 'caballebrios.db')
-    except Exception:
-        pass
-
-    # Fallback to user home
-    try:
-        home = str(Path.home())
-        db_home = os.path.join(home, 'caballebrios.db')
-        parent = Path(db_home).parent
-        parent.mkdir(parents=True, exist_ok=True)
-        return db_home
-    except Exception:
-        # Final fallback to system temp directory
-        return os.path.join(tempfile.gettempdir(), 'caballebrios.db')
-
-DB_PATH = resolve_db_path()
 DATABASE_URL = os.environ.get("DATABASE_URL")
 USE_POSTGRES = DATABASE_URL is not None and PSYCOPG2_AVAILABLE
 
+# Always use temp directory for SQLite to avoid read-only filesystem issues
+DB_PATH = os.path.join(tempfile.gettempdir(), 'caballebrios.db')
+
 def get_db_connection():
-    """Get database connection (PostgreSQL if DATABASE_URL set, else SQLite)"""
+    """Get database connection (PostgreSQL if DATABASE_URL set, else SQLite).
+    
+    - PostgreSQL is preferred when DATABASE_URL environment variable is set.
+    - SQLite fallback uses temp directory to avoid read-only filesystem issues.
+    """
     if USE_POSTGRES:
         try:
             conn = psycopg2.connect(DATABASE_URL, sslmode='require')
             return conn
         except Exception as e:
-            st.error(f"PostgreSQL connection failed: {e}. Falling back to SQLite.")
-            # Ensure parent directory exists before creating SQLite file
-            try:
-                Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-            except Exception:
-                pass
-            return sqlite3.connect(DB_PATH)
-    else:
-        # Ensure parent directory exists before creating SQLite file
-        try:
-            Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-        except Exception:
+            # Log and continue - try SQLite fallback
             pass
-        return sqlite3.connect(DB_PATH)
+    
+    # Use SQLite (either as fallback or primary)
+    return sqlite3.connect(DB_PATH)
 
 def execute_query(c, query, params=None):
     """Execute query with proper parameter placeholders for both SQLite and PostgreSQL"""
@@ -155,17 +117,22 @@ def read_sql_query(query, conn, params=None):
 
     - Converts SQLite-style `?` placeholders to PostgreSQL `%s` when using Postgres.
     - Converts `GROUP_CONCAT(...)` to `string_agg(...)` for PostgreSQL.
+    - Uses DATABASE_URL string URI with pandas for PostgreSQL (avoids psycopg2 warning).
     """
-    if params and USE_POSTGRES:
-        # Convert ? to %s for PostgreSQL
+    if USE_POSTGRES:
+        # PostgreSQL: convert SQLite syntax to PostgreSQL syntax
         pg_query = query.replace('?', '%s')
-        # Convert GROUP_CONCAT to string_agg for PostgreSQL
         pg_query = pg_query.replace('GROUP_CONCAT(', 'string_agg(')
-        # If the pattern used a literal separator like ", ', ')", adjust to ORDER BY 1 for string_agg
         pg_query = pg_query.replace(", ', ')", ", ', ' ORDER BY 1)")
-        return pd.read_sql_query(pg_query, conn, params=params)
-
-    # Default: pass through to pandas (works for SQLite and simple queries)
+        
+        # Use DATABASE_URL string URI with pandas to leverage SQLAlchemy and avoid psycopg2 warning
+        try:
+            return pd.read_sql_query(pg_query, DATABASE_URL, params=params)
+        except Exception:
+            # Fallback to using the raw psycopg2 connection
+            return pd.read_sql_query(pg_query, conn, params=params)
+    
+    # SQLite path (default)
     return pd.read_sql_query(query, conn, params=params)
 
 def init_db():
