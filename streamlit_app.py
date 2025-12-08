@@ -360,6 +360,12 @@ def main():
     st.title("🎮 Caballebrios One")
     st.markdown("### Sistema de Seguimiento de Noches de Juego")
     
+    # Show which database backend is being used
+    if USE_POSTGRES:
+        st.info("💾 **Database:** PostgreSQL/Neon (Persistent)")
+    else:
+        st.warning("📁 **Database:** SQLite in /tmp (Non-persistent)\n\nTo use Neon PostgreSQL, set `DATABASE_URL` secret in Streamlit Cloud")
+    
     # Sidebar
     with st.sidebar:
         st.image("https://via.placeholder.com/200x200.png?text=Caballebrios", width=200)
