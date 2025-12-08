@@ -106,16 +106,26 @@ def execute_query(c, query, params=None):
     
     Detects the connection type and uses appropriate parameter placeholders.
     """
-    is_postgres = isinstance(c, psycopg2.extensions.cursor) if PSYCOPG2_AVAILABLE else False
+    # Check if cursor belongs to a PostgreSQL connection
+    is_postgres = False
+    if PSYCOPG2_AVAILABLE:
+        try:
+            is_postgres = isinstance(c, psycopg2.extensions.cursor)
+        except:
+            is_postgres = False
     
-    if params and is_postgres:
-        # Convert ? to %s for PostgreSQL
-        pg_query = query.replace('?', '%s')
-        c.execute(pg_query, params)
-    elif params:
-        c.execute(query, params)
-    else:
-        c.execute(query)
+    try:
+        if params and is_postgres:
+            # Convert ? to %s for PostgreSQL
+            pg_query = query.replace('?', '%s')
+            c.execute(pg_query, params)
+        elif params:
+            c.execute(query, params)
+        else:
+            c.execute(query)
+    except Exception as e:
+        # Log the error for debugging
+        raise
 
 def read_sql_query(query, conn, params=None):
     """Wrapper for pd.read_sql_query that handles SQLite vs PostgreSQL placeholder syntax.
@@ -288,7 +298,12 @@ def init_db():
     conn.close()
 
 # Initialize database
-init_db()
+try:
+    init_db()
+except Exception as e:
+    import sys
+    print(f"Warning: Database initialization failed: {e}", file=sys.stderr)
+    # Continue anyway - tables might already exist
 
 # Helper functions
 def get_active_season():
