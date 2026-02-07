@@ -98,9 +98,17 @@ def execute_query(c, query, params=None):
     """Execute query with PostgreSQL parameter placeholders (%s).
     
     All queries should use %s placeholders for PostgreSQL.
+    Converts numpy types to native Python types for psycopg2 compatibility.
     """
     try:
+        # Convert numpy types to native Python types for psycopg2 compatibility
         if params:
+            import numpy as np
+            params = tuple(
+                int(p) if isinstance(p, (np.integer,)) else
+                float(p) if isinstance(p, (np.floating,)) else
+                p for p in params
+            )
             c.execute(query, params)
         else:
             c.execute(query)
