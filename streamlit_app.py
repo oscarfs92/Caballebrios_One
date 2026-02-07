@@ -461,7 +461,7 @@ def show_dashboard():
             fig = px.bar(points_by_game_df, x='juego', y='rondas_jugadas',
                         title='Rondas Jugadas por Juego',
                         labels={'juego': 'Juego', 'rondas_jugadas': 'Rondas'},
-                        color='victorias_totales',
+                        color='rondas_jugadas',
                         color_continuous_scale='Blues')
             fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
