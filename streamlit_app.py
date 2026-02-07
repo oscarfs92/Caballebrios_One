@@ -418,11 +418,16 @@ def show_dashboard():
     games_won_df = read_sql_query(games_won_query, conn, params=(active_season[0],))
     
     if not games_won_df.empty:
+        # Sort players by total points (descending)
+        player_totals = games_won_df.groupby('jugador')['puntos'].sum().sort_values(ascending=False)
+        player_order = player_totals.index.tolist()
+        
         fig = px.bar(games_won_df, x='jugador', y='puntos', color='juego',
                     title='Puntos Ganados por Juego',
                     labels={'jugador': 'Jugador', 'puntos': 'Puntos Totales', 'juego': 'Juego'},
                     barmode='stack',
-                    color_discrete_sequence=px.colors.qualitative.Set3)
+                    color_discrete_sequence=px.colors.qualitative.Set3,
+                    category_orders={'jugador': player_order})
         fig.update_layout(height=400, hovermode='x unified')
         st.plotly_chart(fig, use_container_width=True)
     
@@ -446,6 +451,9 @@ def show_dashboard():
     points_by_game_df = read_sql_query(points_by_game_query, conn, params=(active_season[0],))
     
     if not points_by_game_df.empty and points_by_game_df['puntos_otorgados'].sum() > 0:
+        # Sort games by points granted (descending) for consistent display
+        game_order = points_by_game_df.sort_values('puntos_otorgados', ascending=False)['juego'].tolist()
+        
         col1, col2 = st.columns(2)
         
         with col1:
@@ -453,7 +461,8 @@ def show_dashboard():
                         title='Puntos Totales Otorgados',
                         labels={'juego': 'Juego', 'puntos_otorgados': 'Puntos'},
                         color='puntos_otorgados',
-                        color_continuous_scale='Viridis')
+                        color_continuous_scale='Viridis',
+                        category_orders={'juego': game_order})
             fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
         
@@ -462,7 +471,8 @@ def show_dashboard():
                         title='Rondas Jugadas por Juego',
                         labels={'juego': 'Juego', 'rondas_jugadas': 'Rondas'},
                         color='rondas_jugadas',
-                        color_continuous_scale='Blues')
+                        color_continuous_scale='Blues',
+                        category_orders={'juego': game_order})
             fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
     
