@@ -140,7 +140,7 @@ def init_db():
                   name TEXT NOT NULL UNIQUE,
                   start_date DATE,
                   end_date DATE,
-                  is_active INTEGER DEFAULT 0,
+                  is_active BOOLEAN DEFAULT false,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
     execute_query(c, '''CREATE TABLE IF NOT EXISTS games
@@ -212,7 +212,7 @@ def get_active_season():
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        execute_query(c, "SELECT id, name FROM seasons WHERE is_active = %s LIMIT 1", (1,))
+        execute_query(c, "SELECT id, name FROM seasons WHERE is_active = %s LIMIT 1", (True,))
         result = c.fetchone()
     except Exception as e:
         result = None
@@ -468,11 +468,11 @@ def manage_seasons():
                 try:
                     # If making this active, deactivate others
                     if make_active:
-                        execute_query(c, "UPDATE seasons SET is_active = %s", (0,))
+                        execute_query(c, "UPDATE seasons SET is_active = %s", (False,))
                     
                     execute_query(c, """INSERT INTO seasons (name, start_date, end_date, is_active) 
                                 VALUES (%s, %s, %s, %s)""",
-                             (season_name, start_date, end_date, 1 if make_active else 0))
+                             (season_name, start_date, end_date, True if make_active else False))
                     conn.commit()
                     st.success(f"✅ ¡Temporada '{season_name}' creada!")
                     st.rerun()
@@ -504,8 +504,8 @@ def manage_seasons():
                         if st.button("Activar", key=f"activate_{season['id']}"):
                             c = conn.cursor()
                             try:
-                                execute_query(c, "UPDATE seasons SET is_active = %s", (0,))
-                                execute_query(c, "UPDATE seasons SET is_active = %s WHERE id = %s", (1, season['id']))
+                                execute_query(c, "UPDATE seasons SET is_active = %s", (False,))
+                                execute_query(c, "UPDATE seasons SET is_active = %s WHERE id = %s", (True, season['id']))
                                 conn.commit()
                                 st.success("¡Temporada activada!")
                                 st.rerun()
@@ -1455,7 +1455,7 @@ def show_admin():
                     # Create Season 1
                     execute_query(c, """INSERT INTO seasons (name, start_date, end_date, is_active) 
                                 VALUES (%s, %s, %s, %s) ON CONFLICT (name) DO NOTHING RETURNING id""",
-                             ("Temporada 1", "2025-04-08", "2025-12-03", 0))
+                             ("Temporada 1", "2025-04-08", "2025-12-03", False))
                     result = c.fetchone()
                     if result:
                         season_id = result[0]
