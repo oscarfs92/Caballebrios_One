@@ -393,6 +393,109 @@ def show_dashboard():
     else:
         st.info("¡No hay noches de juego registradas!")
     
+    # New Charts Section
+    st.markdown("---")
+    st.subheader("📊 Análisis Detallado")
+    
+    # 1. Games most commonly won by player
+    st.subheader("🎯 Juegos Ganados por Jugador")
+    
+    games_won_query = """
+    SELECT 
+        p.name as jugador,
+        g.name as juego,
+        COUNT(*) as victorias
+    FROM players p
+    JOIN round_winners rw ON p.id = rw.player_id
+    JOIN game_rounds gr ON rw.round_id = gr.id
+    JOIN games g ON gr.game_id = g.id
+    JOIN game_nights gn ON gr.game_night_id = gn.id
+    WHERE gn.season_id = %s
+    GROUP BY p.id, g.id
+    ORDER BY p.name, victorias DESC
+    """
+    
+    games_won_df = read_sql_query(games_won_query, conn, params=(active_season[0],))
+    
+    if not games_won_df.empty:
+        fig = px.bar(games_won_df, x='jugador', y='victorias', color='juego',
+                    title='Juegos Ganados por Jugador',
+                    labels={'jugador': 'Jugador', 'victorias': 'Número de Victorias', 'juego': 'Juego'},
+                    barmode='stack',
+                    color_discrete_sequence=px.colors.qualitative.Set3)
+        fig.update_layout(height=400, hovermode='x unified')
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # 2. Total points granted by game
+    st.subheader("💰 Puntos Totales Otorgados por Juego")
+    
+    points_by_game_query = """
+    SELECT 
+        g.name as juego,
+        g.points_per_win as puntos_por_victoria,
+        COUNT(rw.id) as victorias_totales,
+        g.points_per_win * COUNT(rw.id) as puntos_otorgados
+    FROM games g
+    LEFT JOIN game_rounds gr ON g.id = gr.game_id
+    LEFT JOIN round_winners rw ON gr.id = rw.round_id
+    LEFT JOIN game_nights gn ON gr.game_night_id = gn.id
+    WHERE gn.season_id = %s OR gn.season_id IS NULL
+    GROUP BY g.id, g.name, g.points_per_win
+    ORDER BY puntos_otorgados DESC
+    """
+    
+    points_by_game_df = read_sql_query(points_by_game_query, conn, params=(active_season[0],))
+    
+    if not points_by_game_df.empty and points_by_game_df['puntos_otorgados'].sum() > 0:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            fig = px.bar(points_by_game_df, x='juego', y='puntos_otorgados',
+                        title='Puntos Totales Otorgados',
+                        labels={'juego': 'Juego', 'puntos_otorgados': 'Puntos'},
+                        color='puntos_otorgados',
+                        color_continuous_scale='Viridis')
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            fig = px.bar(points_by_game_df, x='juego', y='victorias_totales',
+                        title='Victorias Totales por Juego',
+                        labels={'juego': 'Juego', 'victorias_totales': 'Victorias'},
+                        color='victorias_totales',
+                        color_continuous_scale='Blues')
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # 3. Accumulated points by player over time
+    st.subheader("📈 Progresión de Puntos en el Tiempo")
+    
+    progression_query = """
+    SELECT 
+        p.name as jugador,
+        gn.date as fecha,
+        SUM(g.points_per_win) OVER (PARTITION BY p.id ORDER BY gn.date, gr.id) as puntos_acumulados
+    FROM players p
+    JOIN round_winners rw ON p.id = rw.player_id
+    JOIN game_rounds gr ON rw.round_id = gr.id
+    JOIN games g ON gr.game_id = g.id
+    JOIN game_nights gn ON gr.game_night_id = gn.id
+    WHERE gn.season_id = %s
+    ORDER BY gn.date, p.name, gr.id
+    """
+    
+    progression_df = read_sql_query(progression_query, conn, params=(active_season[0],))
+    
+    if not progression_df.empty:
+        fig = px.line(progression_df, x='fecha', y='puntos_acumulados', color='jugador',
+                     title='Puntos Acumulados en el Tiempo',
+                     labels={'fecha': 'Fecha', 'puntos_acumulados': 'Puntos Acumulados', 'jugador': 'Jugador'},
+                     markers=True)
+        fig.update_layout(height=500, hovermode='x unified')
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No hay datos disponibles para la progresión de puntos.")
+    
     conn.close()
 
 def manage_players():
