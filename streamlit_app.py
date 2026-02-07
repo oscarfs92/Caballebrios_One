@@ -272,33 +272,6 @@ def main():
     # Show database backend
     st.success("✅ **Database:** PostgreSQL/Neon (Connected)")
     
-    # Sidebar
-    with st.sidebar:
-        st.image("https://via.placeholder.com/200x200.png?text=Caballebrios", width=200)
-        st.markdown("---")
-        
-        active_season = get_active_season()
-        if active_season:
-            st.success(f"**Temporada Activa:** {active_season[1]}")
-        else:
-            st.warning("Sin temporada activa")
-        
-        st.markdown("---")
-        st.markdown("**Estadísticas Rápidas**")
-        
-        conn = get_db_connection()
-        total_players = read_sql_query("SELECT COUNT(*) as count FROM players", conn)['count'][0]
-        total_games = read_sql_query("SELECT COUNT(*) as count FROM games", conn)['count'][0]
-        total_nights = read_sql_query("SELECT COUNT(*) as count FROM game_nights", conn)['count'][0]
-        conn.close()
-        
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Jugadores", total_players)
-        col2.metric("Juegos", total_games)
-        col3.metric("Noches", total_nights)
-        
-        st.markdown("---")
-    
     # Main tabs with bigger text - REORDERED
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "🎯 Tablero",
