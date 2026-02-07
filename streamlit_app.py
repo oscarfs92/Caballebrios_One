@@ -404,23 +404,23 @@ def show_dashboard():
     SELECT 
         p.name as jugador,
         g.name as juego,
-        COUNT(*) as victorias
+        SUM(g.points_per_win) as puntos
     FROM players p
     JOIN round_winners rw ON p.id = rw.player_id
     JOIN game_rounds gr ON rw.round_id = gr.id
     JOIN games g ON gr.game_id = g.id
     JOIN game_nights gn ON gr.game_night_id = gn.id
     WHERE gn.season_id = %s
-    GROUP BY p.id, g.id
-    ORDER BY p.name, victorias DESC
+    GROUP BY p.id, p.name, g.id, g.name
+    ORDER BY p.name, puntos DESC
     """
     
     games_won_df = read_sql_query(games_won_query, conn, params=(active_season[0],))
     
     if not games_won_df.empty:
-        fig = px.bar(games_won_df, x='jugador', y='victorias', color='juego',
-                    title='Juegos Ganados por Jugador',
-                    labels={'jugador': 'Jugador', 'victorias': 'Número de Victorias', 'juego': 'Juego'},
+        fig = px.bar(games_won_df, x='jugador', y='puntos', color='juego',
+                    title='Puntos Ganados por Juego',
+                    labels={'jugador': 'Jugador', 'puntos': 'Puntos Totales', 'juego': 'Juego'},
                     barmode='stack',
                     color_discrete_sequence=px.colors.qualitative.Set3)
         fig.update_layout(height=400, hovermode='x unified')
@@ -433,11 +433,10 @@ def show_dashboard():
     SELECT 
         g.name as juego,
         g.points_per_win as puntos_por_victoria,
-        COUNT(rw.id) as victorias_totales,
-        g.points_per_win * COUNT(rw.id) as puntos_otorgados
+        COUNT(DISTINCT gr.id) as rondas_jugadas,
+        g.points_per_win * COUNT(DISTINCT gr.id) as puntos_otorgados
     FROM games g
     LEFT JOIN game_rounds gr ON g.id = gr.game_id
-    LEFT JOIN round_winners rw ON gr.id = rw.round_id
     LEFT JOIN game_nights gn ON gr.game_night_id = gn.id
     WHERE gn.season_id = %s OR gn.season_id IS NULL
     GROUP BY g.id, g.name, g.points_per_win
@@ -459,9 +458,9 @@ def show_dashboard():
             st.plotly_chart(fig, use_container_width=True)
         
         with col2:
-            fig = px.bar(points_by_game_df, x='juego', y='victorias_totales',
-                        title='Victorias Totales por Juego',
-                        labels={'juego': 'Juego', 'victorias_totales': 'Victorias'},
+            fig = px.bar(points_by_game_df, x='juego', y='rondas_jugadas',
+                        title='Rondas Jugadas por Juego',
+                        labels={'juego': 'Juego', 'rondas_jugadas': 'Rondas'},
                         color='victorias_totales',
                         color_continuous_scale='Blues')
             fig.update_layout(height=400)
